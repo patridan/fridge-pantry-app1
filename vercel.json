@@ -1,0 +1,7 @@
+{
+  "build": {
+    "env": {},
+    "command": "npm ci && npm run build",
+    "outputDirectory": "dist"
+  }
+}
