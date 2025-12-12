@@ -152,7 +152,7 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
     <>
       {/* Barcode Scanner Modal */}
       {showBarcodeScanner && (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col">
+        <div className="fixed inset-0 bg-black z-100 flex flex-col">
           <div className="bg-gray-900 px-4 py-4 flex justify-between items-center text-white">
             <span>Scanner</span>
             <button onClick={stopScanner}><X className="w-6 h-6"/></button>
