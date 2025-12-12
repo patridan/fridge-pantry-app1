@@ -52,7 +52,7 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
   };
 
   // --- BARCODE SCANNER ---
-  const startScanner = async () => {
+const startScanner = async () => {
     setScannerError("");
     readerRef.current ??= new BrowserMultiFormatReader(
       new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.UPC_A]]])
@@ -64,7 +64,15 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        
+        // Aggiungi un listener per assicurarti che il video sia pronto
+        videoRef.current.addEventListener('loadeddata', () => {
+             videoRef.current?.play().catch(e => {
+                console.error("Errore durante l'avvio della riproduzione video:", e);
+                setScannerError("Impossibile avviare il video della fotocamera.");
+             });
+        }, { once: true });
+        
       }
 
       intervalRef.current = setInterval(scanFrame, 200);
@@ -158,7 +166,7 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
             <button onClick={stopScanner}><X className="w-6 h-6"/></button>
           </div>
           <div className="flex-1 relative">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
+            <video ref={videoRef} className="w-full h-full object-cover ios-video-fix" playsInline autoPlay muted />
             <canvas ref={canvasRef} className="hidden" />
             {scannerError && <div className="text-white absolute bottom-10 w-full text-center">{scannerError}</div>}
           </div>

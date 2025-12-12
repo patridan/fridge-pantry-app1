@@ -195,3 +195,9 @@
 html {
   font-size: var(--font-size);
 }
+
+.ios-video-fix {
+  transform: translateZ(0); /* Forzare l'accelerazione hardware */
+  -webkit-transform: translateZ(0); 
+  -webkit-media-controls-enclosure: false; /* Previene i controlli nativi in alcuni casi */
+}
