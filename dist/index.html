@@ -1,16 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fridge and Pantry App</title>
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Fridge and Pantry App</title>
-      <script type="module" crossorigin src="/assets/index-C5S8ZWlb.js"></script>
-      <link rel="stylesheet" crossorigin href="/assets/index-BWSxWzDq.css">
-    </head>
+    <!-- Icone per Android e iOS -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
 
-    <body>
-      <div id="root"></div>
-    </body>
-  </html>
-  
+    <!-- Manifest per PWA -->
+    <link rel="manifest" href="/manifest.webmobile" />
+
+    <!-- Colori per barra stato mobile -->
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+    <!-- Evita zoom automatico su input mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script type="module" crossorigin src="/assets/index-C5S8ZWlb.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BWSxWzDq.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
