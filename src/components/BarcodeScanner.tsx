@@ -1,167 +1,99 @@
-import { useEffect, useRef, useState, ChangeEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BrowserMultiFormatReader,
-  BarcodeFormat,
   DecodeHintType,
+  BarcodeFormat,
 } from "@zxing/library";
-import { X, Camera, Image } from "lucide-react";
+import { X, Camera } from "lucide-react";
 
 interface BarcodeScannerProps {
-  onScan: (barcode: string) => void;
+  onGotProductData: (data: any) => void;
   onClose: () => void;
 }
 
-export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
+export function BarcodeScanner({
+  onGotProductData,
+  onClose,
+}: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [error, setError] = useState("");
-  const [isLiveScanning, setIsLiveScanning] = useState(true);
-
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const controlsRef = useRef<any>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ---- STOP VIDEO FUNCTION ----
-  const stopLiveScanner = () => {
-    if (controlsRef.current) {
-      try {
-        controlsRef.current.stop();
-        controlsRef.current = null;
-      } catch {}
-    }
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
+      intervalRef.current = setInterval(scanFrame, 200);
+    } catch (err: any) {
+      setError(
+        err.name === "NotAllowedError"
+          ? "Permesso fotocamera negato"
+          : "Errore fotocamera"
+      );
     }
   };
 
-  // ---- IPHONE FALLBACK: decode via canvas ----
-  const decodeFrameManually = () => {
-    if (!readerRef.current) return;
+  const stopCamera = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    videoRef.current!.srcObject = null;
+  };
 
-    const video = videoRef.current!;
+  const scanFrame = () => {
+    if (!readerRef.current || !videoRef.current) return;
+
+    const video = videoRef.current;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx || video.readyState !== 4) return;
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     try {
-      const result = readerRef.current.decodeFromCanvas(canvas);
-      if (result) {
-        onScan(result.getText());
-      }
+      const result = readerRef.current!.decodeFromCanvas(canvas);
+      if (result) fetchProductData(result.getText());
     } catch {}
   };
 
-  // ---- HANDLE IMAGE UPLOAD ----
-  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    stopLiveScanner();
-    setIsLiveScanning(false);
-
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
-
-    await new Promise<void>((resolve) => {
-      img.onload = () => resolve();
-    });
-
+  const fetchProductData = async (barcode: string) => {
+    stopCamera(); // ferma scanner
     try {
-      const result = await readerRef.current!.decodeFromImageElement(img);
-      onScan(result.getText());
-    } catch {
-      setError("Impossibile leggere il codice dall’immagine.");
-    }
-  };
-
-  // ---- START LIVE SCANNER ----
-  const startLiveScanner = async () => {
-    setError("");
-    setIsLiveScanning(true);
-
-    if (!readerRef.current) return;
-
-    stopLiveScanner();
-
-    try {
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { exact: "environment" }, // forza fotocamera posteriore
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-      if (!videoRef.current) return;
-
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-
-      const isIphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-      if (isIphone) {
-        intervalRef.current = setInterval(() => {
-          if (!isLiveScanning) return;
-          decodeFrameManually();
-        }, 200);
-        return;
-      }
-
-      const controls = await readerRef.current.decodeFromVideoDevice(
-        null,
-        videoRef.current,
-        (result) => {
-          if (result) onScan(result.getText());
-        }
+      const res = await fetch(
+        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
       );
-
-      controlsRef.current = controls;
-    } catch (err: any) {
-      if (err.name === "NotAllowedError") {
-        setError("Permesso fotocamera negato. Abilitalo nelle impostazioni.");
-      } else {
-        setError("Impossibile avviare la fotocamera.");
-      }
+      const json = await res.json();
+      onGotProductData(json);
+    } catch (e) {
+      setError("Errore recupero dati prodotto");
     }
   };
 
-  // ---- INITIAL SETUP ----
   useEffect(() => {
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.EAN_13,
       BarcodeFormat.UPC_A,
-      BarcodeFormat.CODE_128,
-      BarcodeFormat.QR_CODE,
     ]);
-
     readerRef.current = new BrowserMultiFormatReader(hints);
-    startLiveScanner();
+    startCamera();
 
-    return () => stopLiveScanner();
+    return () => stopCamera();
   }, []);
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* HEADER */}
       <div className="bg-gray-900 px-4 py-4 flex justify-between items-center text-white">
         <div className="flex gap-2 items-center">
           <Camera className="w-5 h-5" />
@@ -172,54 +104,15 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         </button>
       </div>
 
-      {/* VIDEO */}
-      <div className="flex-1 flex items-center justify-center relative">
-        {isLiveScanning && (
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            playsInline
-          />
-        )}
-
+      <div className="flex-1 relative">
+        <video ref={videoRef} className="w-full h-full object-cover" playsInline />
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* GUIDA PER L’UTENTE */}
-        {isLiveScanning && (
-          <div className="absolute border-4 border-green-500 w-3/4 h-1/4 top-1/3 left-1/8 pointer-events-none"></div>
-        )}
-
         {error && (
-          <div className="text-white text-center p-4">
-            <p>{error}</p>
+          <div className="text-white absolute bottom-10 w-full text-center">
+            {error}
           </div>
         )}
-      </div>
-
-      {/* FOOTER */}
-      <div className="bg-gray-900 px-4 py-4 flex justify-around items-center text-white">
-        {/* --- PULSANTE RIAVVIO FOTOCAMERA --- */}
-        <button
-          onClick={startLiveScanner}
-          className="p-3 bg-white text-black rounded-full shadow"
-        >
-          <Camera className="w-6 h-6" />
-        </button>
-
-        {/* --- PULSANTE CARICA DA GALLERIA --- */}
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          onChange={handleImageUpload}
-          className="hidden"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="p-3 bg-blue-500 rounded-full shadow"
-        >
-          <Image className="w-6 h-6" />
-        </button>
       </div>
     </div>
   );
