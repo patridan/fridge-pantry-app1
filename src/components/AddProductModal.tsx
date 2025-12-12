@@ -1,17 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import {
-  X,
-  Camera,
-  Barcode,
-  Calendar,
-  Upload,
-} from "lucide-react";
+import { X, Camera, Barcode, Calendar, Upload } from "lucide-react";
 import { Product, StorageType } from "../types";
-import {
-  BrowserMultiFormatReader,
-  DecodeHintType,
-  BarcodeFormat,
-} from "@zxing/library";
+import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from "@zxing/library";
 
 interface AddProductModalProps {
   onClose: () => void;
@@ -19,9 +9,9 @@ interface AddProductModalProps {
 }
 
 const categories = [
-  "Latticini", "Mozzarella", "Provola", "Insaccati", "Carne", "Pesce",
-  "Frutta", "Verdura", "Bevande", "Pasta e Riso", "Pane e Cereali",
-  "Condimenti", "Dolci/Brioches", "Zucchero", "Surgelati", "Altro",
+  "Latticini","Mozzarella","Provola","Insaccati","Carne","Pesce",
+  "Frutta","Verdura","Bevande","Pasta e Riso","Pane e Cereali",
+  "Condimenti","Dolci/Brioches","Zucchero","Surgelati","Altro",
 ];
 
 const units = ["pz", "kg", "g", "l", "ml", "confezioni"];
@@ -37,17 +27,16 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
     image: "",
     barcode: "",
   });
-
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [scannerError, setScannerError] = useState("");
   const [manualDate, setManualDate] = useState("");
   const [dateInputMode, setDateInputMode] = useState<"picker" | "manual">("picker");
-  const [scannerError, setScannerError] = useState("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
+  const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: string, value: string | number) => {
@@ -65,12 +54,14 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
   // --- BARCODE SCANNER ---
   const startScanner = async () => {
     setScannerError("");
-    readerRef.current ??= new BrowserMultiFormatReader(new Map([
-      [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.UPC_A]]
-    ]));
+    readerRef.current ??= new BrowserMultiFormatReader(
+      new Map([[DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.UPC_A]]])
+    );
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+      streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -78,17 +69,21 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
 
       intervalRef.current = setInterval(scanFrame, 200);
     } catch (err: any) {
-      setScannerError(err.name === "NotAllowedError"
-        ? "Permesso fotocamera negato"
-        : "Errore accesso fotocamera");
+      setScannerError(err.name === "NotAllowedError" ? "Permesso fotocamera negato" : "Errore accesso fotocamera");
     }
   };
 
   const stopScanner = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach(t => t.stop());
-    videoRef.current!.srcObject = null;
+    intervalRef.current = null;
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setShowBarcodeScanner(false);
   };
 
   const scanFrame = () => {
@@ -110,7 +105,6 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
 
   const fetchProductInfo = async (barcode: string) => {
     stopScanner();
-    setShowBarcodeScanner(false);
 
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
@@ -119,7 +113,7 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
         setFormData({
           ...formData,
           barcode,
-          name: data.product.product_name || "",
+          name: data.product.product_name || `Prodotto ${barcode}`,
           image: data.product.image_front_small_url || "",
         });
       } else {
@@ -161,10 +155,10 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
           <div className="bg-gray-900 px-4 py-4 flex justify-between items-center text-white">
             <span>Scanner</span>
-            <button onClick={() => { stopScanner(); setShowBarcodeScanner(false); }}><X className="w-6 h-6"/></button>
+            <button onClick={stopScanner}><X className="w-6 h-6"/></button>
           </div>
           <div className="flex-1 relative">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline />
+            <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
             <canvas ref={canvasRef} className="hidden" />
             {scannerError && <div className="text-white absolute bottom-10 w-full text-center">{scannerError}</div>}
           </div>
@@ -217,8 +211,174 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
               <input type="text" value={formData.name} onChange={e => handleChange("name", e.target.value)} placeholder="es. Latte fresco" className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all" required/>
             </div>
 
-            {/* Resto del form (storage, category, quantità, unità, data) */}
-            {/* Puoi mantenere il tuo codice originale qui senza modifiche */}
+{/* Storage Type */}
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Posizione *
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleChange("storageType", "frigo")
+                  }
+                  className={`p-4 rounded-xl border-2 transition-all shadow-md ${
+                    formData.storageType === "frigo"
+                      ? "border-cyan-500 bg-gradient-to-br from-cyan-50 to-blue-50 text-cyan-700 shadow-cyan-200"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="text-2xl mb-1">❄</div>
+                  <div>Frigorifero</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleChange("storageType", "dispensa")
+                  }
+                  className={`p-4 rounded-xl border-2 transition-all shadow-md ${
+                    formData.storageType === "dispensa"
+                      ? "border-amber-500 bg-gradient-to-br from-amber-50 to-orange-50 text-amber-700 shadow-amber-200"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="text-2xl mb-1">📦</div>
+                  <div>Dispensa</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label
+                htmlFor="category"
+                className="block text-gray-700 mb-2"
+              >
+                Categoria *
+              </label>
+              <select
+                id="category"
+                value={formData.category}
+                onChange={(e) =>
+                  handleChange("category", e.target.value)
+                }
+                className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all"
+                required
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quantity and Unit */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="quantity"
+                  className="block text-gray-700 mb-2"
+                >
+                  Quantità *
+                </label>
+                <input
+                  type="number"
+                  id="quantity"
+                  min="0"
+                  step="0.1"
+                  value={formData.quantity}
+                  onChange={(e) =>
+                    handleChange(
+                      "quantity",
+                      parseFloat(e.target.value),
+                    )
+                  }
+                  className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="unit"
+                  className="block text-gray-700 mb-2"
+                >
+                  Unità *
+                </label>
+                <select
+                  id="unit"
+                  value={formData.unit}
+                  onChange={(e) =>
+                    handleChange("unit", e.target.value)
+                  }
+                  className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all"
+                  required
+                >
+                  {units.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Expiry Date */}
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Data di Scadenza *
+              </label>
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setDateInputMode("picker")}
+                  className={`flex-1 px-3 py-2 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+                    dateInputMode === "picker"
+                      ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Calendario</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateInputMode("manual")}
+                  className={`flex-1 px-3 py-2 rounded-xl border-2 transition-all flex items-center justify-center gap-2 ${
+                    dateInputMode === "manual"
+                      ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <span>Digita</span>
+                </button>
+              </div>
+
+              {dateInputMode === "picker" ? (
+                <input
+                  type="date"
+                  id="expiryDate"
+                  value={formData.expiryDate}
+                  onChange={(e) =>
+                    handleChange("expiryDate", e.target.value)
+                  }
+                  className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all"
+                  required
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={manualDate}
+                  onChange={(e) =>
+                    handleManualDateChange(e.target.value)
+                  }
+                  placeholder="GG/MM/AAAA (es. 25/12/2024)"
+                  maxLength={10}
+                  className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 transition-all"
+                  required
+                />
+              )}
+            </div>
 
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors">Annulla</button>
