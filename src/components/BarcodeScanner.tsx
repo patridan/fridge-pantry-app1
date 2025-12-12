@@ -21,6 +21,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<any>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ---- STOP VIDEO FUNCTION ----
   const stopLiveScanner = () => {
@@ -29,6 +30,11 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         controlsRef.current.stop();
         controlsRef.current = null;
       } catch {}
+    }
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
 
     if (videoRef.current?.srcObject) {
@@ -94,7 +100,11 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
     try {
       const constraints: MediaStreamConstraints = {
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: { exact: "environment" }, // forza fotocamera posteriore
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
       };
 
@@ -105,22 +115,16 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
-      // iPHONE FALLBACK: manual decoding
       const isIphone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
       if (isIphone) {
-        const interval = setInterval(() => {
-          if (!isLiveScanning) {
-            clearInterval(interval);
-            return;
-          }
+        intervalRef.current = setInterval(() => {
+          if (!isLiveScanning) return;
           decodeFrameManually();
         }, 200);
-
         return;
       }
 
-      // NORMAL AUTO MODE
       const controls = await readerRef.current.decodeFromVideoDevice(
         null,
         videoRef.current,
@@ -180,6 +184,11 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
         <canvas ref={canvasRef} className="hidden" />
 
+        {/* GUIDA PER L’UTENTE */}
+        {isLiveScanning && (
+          <div className="absolute border-4 border-green-500 w-3/4 h-1/4 top-1/3 left-1/8 pointer-events-none"></div>
+        )}
+
         {error && (
           <div className="text-white text-center p-4">
             <p>{error}</p>
@@ -189,7 +198,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
       {/* FOOTER */}
       <div className="bg-gray-900 px-4 py-4 flex justify-around items-center text-white">
-        {/* --- PULSANTE SCATTA FOTO --- */}
+        {/* --- PULSANTE RIAVVIO FOTOCAMERA --- */}
         <button
           onClick={startLiveScanner}
           className="p-3 bg-white text-black rounded-full shadow"
