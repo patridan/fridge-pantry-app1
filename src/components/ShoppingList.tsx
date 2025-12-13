@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Check } from 'lucide-react';
+import { Plus, X, Check, Trash2 } from 'lucide-react';
 import { ShoppingItem } from '../types';
 
 interface ShoppingListProps {
@@ -20,6 +20,12 @@ export function ShoppingList({ items, onAdd, onToggle, onDelete }: ShoppingListP
       setNewItemName('');
       setNewItemQuantity('');
       setIsAdding(false);
+    }
+  };
+
+  const handleDeleteWithConfirm = (id: string) => {
+    if (window.confirm('Sei sicuro di voler eliminare questo prodotto?')) {
+      onDelete(id);
     }
   };
 
@@ -88,7 +94,7 @@ export function ShoppingList({ items, onAdd, onToggle, onDelete }: ShoppingListP
                 )}
               </div>
               <button
-                onClick={() => onDelete(item.id)}
+                onClick={() => handleDeleteWithConfirm(item.id)}
                 className="flex-shrink-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="w-5 h-5" />
@@ -121,10 +127,10 @@ export function ShoppingList({ items, onAdd, onToggle, onDelete }: ShoppingListP
                   )}
                 </div>
                 <button
-                  onClick={() => onDelete(item.id)}
-                  className="flex-shrink-0 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => handleDeleteWithConfirm(item.id)}
+                  className="flex-shrink-0 text-red-500 hover:text-red-700 opacity-100 transition-opacity"
                 >
-                  <X className="w-5 h-5" />
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             ))}

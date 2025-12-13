@@ -1,118 +1,74 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  BrowserMultiFormatReader,
-  DecodeHintType,
-  BarcodeFormat,
-} from "@zxing/library";
-import { X, Camera } from "lucide-react";
+import { useRef, useState } from 'react';
+import { X, Camera } from 'lucide-react';
+import jsQR from 'jsqr';
 
 interface BarcodeScannerProps {
-  onGotProductData: (data: any) => void;
+  onScan: (barcode: string) => void;
   onClose: () => void;
 }
 
-export function BarcodeScanner({
-  onGotProductData,
-  onClose,
-}: BarcodeScannerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string>('');
 
-  const [error, setError] = useState("");
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      intervalRef.current = setInterval(scanFrame, 200);
-    } catch (err: any) {
-      setError(
-        err.name === "NotAllowedError"
-          ? "Permesso fotocamera negato"
-          : "Errore fotocamera"
-      );
-    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        if (code) {
+          onScan(code.data);
+        } else {
+          setError('Impossibile leggere il codice a barre. Riprova.');
+        }
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   };
-
-  const stopCamera = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    const stream = videoRef.current?.srcObject as MediaStream | null;
-    stream?.getTracks().forEach((t) => t.stop());
-    videoRef.current!.srcObject = null;
-  };
-
-  const scanFrame = () => {
-    if (!readerRef.current || !videoRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d");
-    if (!ctx || video.readyState !== 4) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    try {
-      const result = readerRef.current!.decodeFromCanvas(canvas);
-      if (result) fetchProductData(result.getText());
-    } catch {}
-  };
-
-  const fetchProductData = async (barcode: string) => {
-    stopCamera(); // ferma scanner
-    try {
-      const res = await fetch(
-        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-      );
-      const json = await res.json();
-      onGotProductData(json);
-    } catch (e) {
-      setError("Errore recupero dati prodotto");
-    }
-  };
-
-  useEffect(() => {
-    const hints = new Map();
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-      BarcodeFormat.EAN_13,
-      BarcodeFormat.UPC_A,
-    ]);
-    readerRef.current = new BrowserMultiFormatReader(hints);
-    startCamera();
-
-    return () => stopCamera();
-  }, []);
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      <div className="bg-gray-900 px-4 py-4 flex justify-between items-center text-white">
-        <div className="flex gap-2 items-center">
+      <div className="bg-gray-900 px-4 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white">
           <Camera className="w-5 h-5" />
-          <span>Scanner</span>
+          <span>Scansiona Codice a Barre</span>
         </div>
-        <button onClick={onClose}>
+        <button onClick={onClose} className="text-white hover:text-gray-300 transition-colors" aria-label="Chiudi">
           <X className="w-6 h-6" />
         </button>
       </div>
 
-      <div className="flex-1 relative">
-        <video ref={videoRef} className="w-full h-full object-cover" playsInline />
-        <canvas ref={canvasRef} className="hidden" />
+      <div className="flex-1 flex flex-col items-center justify-center px-4">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="px-6 py-3 bg-white text-black rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          Seleziona foto
+        </button>
 
-        {error && (
-          <div className="text-white absolute bottom-10 w-full text-center">
-            {error}
-          </div>
-        )}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
       </div>
     </div>
   );
