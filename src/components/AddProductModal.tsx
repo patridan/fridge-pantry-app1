@@ -1,11 +1,7 @@
-import {
-  Barcode,
-  Camera,
-  X
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Barcode, Calendar, Camera, Upload, X } from "lucide-react";
+import React, { useRef, useState } from "react";
+import BarcodeScannerComponent from "react-qr-barcode-scanner";
 import { Product, StorageType } from "../types";
-import { BarcodeScanner } from "./BarcodeScanner";
 
 interface AddProductModalProps {
   onClose: () => void;
@@ -13,25 +9,12 @@ interface AddProductModalProps {
 }
 
 const categories = [
-  "Latticini",
-  "Mozzarella",
-  "Provola",
-  "Insaccati",
-  "Carne",
-  "Pesce",
-  "Frutta",
-  "Verdura",
-  "Bevande",
-  "Pasta e Riso",
-  "Pane e Cereali",
-  "Condimenti",
-  "Dolci/Brioches",
-  "Zucchero",
-  "Surgelati",
-  "Altro",
+  "Latticini","Mozzarella","Provola","Insaccati","Carne","Pesce",
+  "Frutta","Verdura","Bevande","Pasta e Riso","Pane e Cereali",
+  "Condimenti","Dolci/Brioches","Zucchero","Surgelati","Altro"
 ];
 
-const units = ["pz", "kg", "g", "l", "ml", "confezioni"];
+const units = ["pz","kg","g","l","ml","confezioni"];
 
 export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
   const [formData, setFormData] = useState({
@@ -45,231 +28,377 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
     barcode: "",
   });
 
-  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [dateInputMode, setDateInputMode] = useState<"picker" | "manual">("picker");
   const [manualDate, setManualDate] = useState("");
+  const [dateInputMode, setDateInputMode] = useState<"picker" | "manual">("picker");
+  const [showScanner, setShowScanner] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, []);
-
-  /* ---------------- SUBMIT ---------------- */
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.name && formData.expiryDate) {
-      onAdd(formData);
-      onClose();
-    }
-  };
-
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = (field: string, value: string | number) =>
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
-  /* ---------------- BARCODE ---------------- */
-
-  const handleBarcodeScanned = async (barcode: string) => {
-    setShowBarcodeScanner(false);
-
-    setFormData(prev => ({
-      ...prev,
-      barcode,
-    }));
-
+  // -------------------------------
+  // FETCH OPEN FOOD FACTS
+  // -------------------------------
+  const fetchProductByBarcode = async (barcode: string) => {
     try {
-      const res = await fetch(
-        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-      );
-      const data = await res.json();
-
-      if (data.status === 1) {
-        setFormData(prev => ({
-          ...prev,
-          name: data.product.product_name || barcode,
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          name: prev.name || barcode,
-        }));
+      const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const json = await response.json();
+      if (json?.status === 1 && json.product) {
+        const p = json.product;
+        handleChange("name", p.product_name || "");
+        handleChange("category", p.categories_tags?.[0]?.replace("en:", "") || categories[0]);
+        handleChange("image", p.image_front_url || "");
       }
-    } catch (err) {
-      console.error("Errore OpenFoodFacts:", err);
+    } catch (e) {
+      console.error("Errore OpenFoodFacts:", e);
     }
   };
 
-  /* ---------------- IMMAGINE ---------------- */
-
-  const handleImageCapture = (imageData: string) => {
-    setFormData(prev => ({ ...prev, image: imageData }));
+  // -------------------------------
+  // SCANNER QR
+  // -------------------------------
+  const handleScan = (result: any) => {
+    if (result) {
+      const barcode = result.getText();
+      handleChange("barcode", barcode);
+      fetchProductByBarcode(barcode);
+      setShowScanner(false);
+    }
   };
 
+  const handleError = (err: any) => {
+    if (err.name && err.name !== "NotFoundException2") console.error("Errore scanner:", err);
+  };
+
+  // -------------------------------
+  // CAMERA FOTO
+  // -------------------------------
+  const startCamera = async () => {
+    setShowScanner(false);
+    setVideoReady(false);
+    setShowCamera(true); // ⬅️ PRIMA mostri il video
+  
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }
+        }
+      });
+  
+      streamRef.current = stream;
+    } catch (err) {
+      console.error("Errore accesso fotocamera:", err);
+      alert("Permessi fotocamera negati o non disponibile.");
+      setShowCamera(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!showCamera) return;
+  
+    const video = videoRef.current;
+    const stream = streamRef.current;
+  
+    if (!video || !stream) return;
+  
+    video.srcObject = stream;
+  
+    video
+      .play()
+      .then(() => setVideoReady(true))
+      .catch(err => console.error("Errore play video:", err));
+  }, [showCamera]);
+  
+    
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+  
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  
+    setShowCamera(false);
+    setVideoReady(false);
+  };
+  
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+  
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.warn("Video non pronto");
+      return;
+    }
+  
+    requestAnimationFrame(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+  
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+  
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+      const image = canvas.toDataURL("image/jpeg", 0.9);
+      handleChange("image", image);
+      stopCamera();
+    });
+  };
+    
+  // -------------------------------
+  // FILE UPLOAD 
+  // -------------------------------
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      handleImageCapture(reader.result as string);
-    };
+    reader.onloadend = () => handleChange("image", reader.result as string);
     reader.readAsDataURL(file);
   };
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }, // 🔧 FIX OBBLIGATORIO
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setShowCamera(true);
-    } catch {
-      alert("Impossibile accedere alla fotocamera.");
-    }
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.drawImage(videoRef.current, 0, 0);
-    handleImageCapture(canvas.toDataURL("image/jpeg", 0.8));
-    stopCamera();
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    setShowCamera(false);
-  };
-
-  /* ---------------- DATA ---------------- */
-
-  const formatManualDate = (value: string) => {
-    const n = value.replace(/\D/g, "");
-    let out = "";
-    if (n.length > 0) out = n.slice(0, 2);
-    if (n.length > 2) out += "/" + n.slice(2, 4);
-    if (n.length > 4) out += "/" + n.slice(4, 8);
-    return out;
-  };
-
+  // -------------------------------
+  // DATA MANUALE
+  // -------------------------------
   const handleManualDateChange = (value: string) => {
-    const formatted = formatManualDate(value);
+    const numbers = value.replace(/\D/g, "");
+    let formatted = numbers;
+    if (numbers.length > 2) formatted = numbers.substring(0, 2) + "/" + numbers.substring(2, 4);
+    if (numbers.length > 4) formatted += "/" + numbers.substring(4, 8);
     setManualDate(formatted);
-
     if (formatted.length === 10) {
-      const [d, m, y] = formatted.split("/");
-      const iso = `${y}-${m}-${d}`;
-      const date = new Date(iso);
-      if (!isNaN(date.getTime())) {
-        setFormData(p => ({ ...p, expiryDate: iso }));
-      }
+      const [day, month, year] = formatted.split("/");
+      const iso = `${year}-${month}-${day}`;
+      if (!isNaN(new Date(iso).getTime())) handleChange("expiryDate", iso);
     }
   };
 
-  /* ===================== RENDER ===================== */
+  // -------------------------------
+  // SUBMIT
+  // -------------------------------
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.name && formData.expiryDate) {
+      onAdd(formData);
+      onClose();
+    } else {
+      alert("Compila tutti i campi obbligatori!");
+    }
+  };
 
   return (
     <>
-      {/* 🔧 SCANNER AL ROOT ASSOLUTO */}
-      {showBarcodeScanner && (
-        <div className="fixed inset-0 z-[9999] bg-black">
-          <BarcodeScanner
-            onScan={handleBarcodeScanned}
-            onClose={() => setShowBarcodeScanner(false)}
-          />
-        </div>
-      )}
-
-      {showCamera && (
-        <div className="fixed inset-0 bg-black z-[60] flex flex-col">
-          <div className="bg-gray-900 px-4 py-4 flex justify-between text-white">
-            <span>Scatta Foto</span>
-            <button onClick={stopCamera}>
-              <X />
-            </button>
-          </div>
-
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="flex-1 object-cover"
-          />
-
-          <div className="p-4 flex justify-center">
-            <button
-              onClick={capturePhoto}
-              className="w-16 h-16 bg-white rounded-full"
-            >
-              <Camera />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
-            <button
-              type="button"
-              onClick={() => setShowBarcodeScanner(true)}
-              className="w-full border-2 border-dashed p-3 rounded-xl flex justify-center gap-2"
-            >
-              <Barcode /> Scansiona Codice a Barre
-            </button>
-
-            {formData.barcode && (
-              <p className="text-sm text-cyan-600">
-                Codice: {formData.barcode}
-              </p>
-            )}
-
-            <input
-              type="text"
-              placeholder="Nome prodotto"
-              value={formData.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-              required
+      {/* SCANNER QR */}
+      {showScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex flex-col items-center justify-center p-4">
+          <div className="relative w-full max-w-md aspect-[4/3] bg-black rounded-xl overflow-hidden">
+            <BarcodeScannerComponent
+              width={400}
+              height={300}
+              onUpdate={(err, result) => result ? handleScan(result) : handleError(err)}
             />
-
-            <input
-              type="date"
-              value={formData.expiryDate}
-              onChange={(e) => handleChange("expiryDate", e.target.value)}
-              required
-            />
-
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose}>
-                Annulla
-              </button>
-              <button type="submit">Aggiungi</button>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="border-4 border-cyan-500 rounded-xl w-2/3 h-2/3" />
             </div>
-          </form>
+            <div className="absolute top-2 w-full text-center text-white font-semibold pointer-events-none">
+              Inquadra il prodotto
+            </div>
+          </div>
+          <button
+            onClick={() => setShowScanner(false)}
+            className="mt-4 px-6 py-3 bg-red-500 rounded-full text-white font-semibold shadow-lg"
+          >
+            Chiudi
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* CAMERA FOTO */}
+      {showCamera && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex flex-col items-center justify-center p-4">
+          <div className="relative w-full max-w-md aspect-[4/3] bg-black rounded-xl overflow-hidden">
+          <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onPlaying={() => setVideoReady(true)}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="border-4 border-cyan-500 rounded-xl w-2/3 h-2/3" />
+            </div>
+            <div className="absolute top-2 w-full text-center text-white font-semibold pointer-events-none">
+              Inquadra il prodotto
+            </div>
+          </div>
+          <div className="mt-4 flex gap-4">
+          <button
+            onClick={capturePhoto}
+            disabled={!videoReady}
+            className="px-6 py-3 bg-white rounded-full shadow-lg disabled:opacity-50"
+          >
+            <Camera className="w-6 h-6 text-gray-900" />
+          </button>
+            <button onClick={stopCamera} className="px-6 py-3 bg-red-500 rounded-full text-white font-semibold shadow-lg">
+              Chiudi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FORM MODAL */}
+      {!showCamera && !showScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden border-2 border-cyan-100 flex flex-col">
+            <div className="sticky top-0 bg-cyan-600 px-4 py-3 flex items-center justify-between rounded-t-3xl">
+              <h2 className="text-white text-lg font-semibold">Aggiungi Prodotto</h2>
+              <button onClick={onClose} className="text-white/80 hover:text-white">
+                <X className="w-5 h-5"/>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-3 flex-1 overflow-y-auto space-y-4 space-x-10">
+              
+              {/* Barcode */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Scansiona Codice a Barre</label>
+                <button type="button" onClick={() => setShowScanner(true)}
+                  className="w-full px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 text-sm">
+                  <Barcode className="w-4 h-4"/> Scansiona
+                </button>
+                {formData.barcode && <div className="mt-1 text-xs text-cyan-600">Codice: {formData.barcode}</div>}
+              </div>
+
+              {/* Foto */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Foto Prodotto</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm">
+                    <Upload className="w-4 h-4"/> Carica
+                  </button>
+                  <button type="button" onClick={startCamera}
+                className="w-full px-3 py-2 border-2 border-dashed rounded-xl flex justify-center gap-2">
+                <Camera className="w-4 h-4"/> Scatta foto
+              </button>
+
+              {formData.image && (
+                <img src={formData.image} className="w-32 h-32 object-cover rounded-xl"/>
+              )}
+                </div>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                {formData.image && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img
+                      src={formData.image}
+                      alt="Anteprima"
+                      className="w-24 h-24 object-cover rounded-xl border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleChange("image", "")}
+                      className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white"
+                    >
+                      <X className="w-3 h-3"/>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Nome */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Nome Prodotto *</label>
+                <input type="text" value={formData.name} onChange={e => handleChange("name", e.target.value)}
+                  placeholder="es. Latte fresco"
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" required/>
+              </div>
+
+              {/* Storage */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Posizione *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => handleChange("storageType","frigo")}
+                    className={`p-2 rounded-xl border-2 text-sm ${formData.storageType==="frigo"?"border-cyan-500 bg-cyan-50":"border-gray-200 bg-white"}`}>
+                    ❄️ Frigorifero
+                  </button>
+                  <button type="button" onClick={() => handleChange("storageType","dispensa")}
+                    className={`p-2 rounded-xl border-2 text-sm ${formData.storageType==="dispensa"?"border-amber-500 bg-amber-50":"border-gray-200 bg-white"}`}>
+                    📦 Dispensa
+                  </button>
+                </div>
+              </div>
+
+              {/* Categoria */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Categoria *</label>
+                <select value={formData.category} onChange={e=>handleChange("category",e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm">
+                  {categories.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+
+              {/* Quantità */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-700 mb-1 text-sm">Quantità *</label>
+                  <input type="number" min={0} step={0.1} value={formData.quantity}
+                    onChange={e=>handleChange("quantity",parseFloat(e.target.value))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm"/>
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-1 text-sm">Unità *</label>
+                  <select value={formData.unit} onChange={e=>handleChange("unit",e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm">
+                    {units.map(u=><option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Data Scadenza */}
+              <div>
+                <label className="block text-gray-700 mb-1 text-sm">Data di Scadenza *</label>
+                <div className="flex gap-2 mb-1">
+                  <button type="button" onClick={()=>setDateInputMode("picker")}
+                    className={`flex-1 p-2 rounded-xl border-2 text-sm ${dateInputMode==="picker"?"border-cyan-500 bg-cyan-50":"border-gray-200 bg-white"}`}>
+                    <Calendar className="w-4 h-4 inline"/> Calendario
+                  </button>
+                  <button type="button" onClick={()=>setDateInputMode("manual")}
+                    className={`flex-1 p-2 rounded-xl border-2 text-sm ${dateInputMode==="manual"?"border-cyan-500 bg-cyan-50":"border-gray-200 bg-white"}`}>
+                    Digita
+                  </button>
+                </div>
+                {dateInputMode==="picker" ? (
+                  <input type="date" value={formData.expiryDate} onChange={e=>handleChange("expiryDate", e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm"/>
+                ) : (
+                  <input type="text" value={manualDate} onChange={e=>handleManualDateChange(e.target.value)}
+                    placeholder="GG/MM/AAAA" maxLength={10} className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm"/>
+                )}
+              </div>
+
+              {/* Pulsanti */}
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={onClose} className="flex-1 p-2 border-2 border-gray-300 rounded-xl text-sm">Annulla</button>
+                <button type="submit" className="flex-1 p-2 bg-cyan-600 text-white rounded-xl text-sm">Aggiungi</button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
 import { LogOut, Plus, ShoppingCart } from 'lucide-react';
-import { ProductList } from './ProductList';
-import { AddProductModal } from './AddProductModal';
-import { ShoppingList } from './ShoppingList';
-import { Product, StorageType, ShoppingItem } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Product, ShoppingItem, StorageType } from '../types';
 import * as api from '../utils/api';
+import { AddProductModal } from './AddProductModal';
+import { ProductList } from './ProductList';
+import { ShoppingList } from './ShoppingList';
 
 interface DashboardProps {
   username: string;
@@ -134,7 +134,7 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-sky-50 to-amber-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-cyan-600 to-sky-600 shadow-lg sticky top-0 z-10">
+      <header className="bg-gradient-to-r from-cyan-600 to-sky-600 shadow-lg sticky top-0 z-5">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>

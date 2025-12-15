@@ -1,9 +1,13 @@
-import { defineConfig } from 'vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import { defineConfig } from 'vite';
+
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(),
+    basicSsl(),   //  HTTPS
+  ],
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
@@ -59,4 +63,5 @@ export default defineConfig({
     host: true,
     allowedHosts: ['.ngrok-free.dev'],
   },
+  
 });
