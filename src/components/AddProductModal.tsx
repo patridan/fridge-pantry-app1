@@ -256,15 +256,18 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
 
       {/* FORM MODAL */}
       {!showCamera && !showScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden border-2 border-cyan-100 flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex justify-center p-4 z-40 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full h-[80vh] overflow-hidden border-2 border-cyan-100 flex flex-col mt-10 mb-10">
             <div className="sticky top-0 bg-cyan-600 px-4 py-3 flex items-center justify-between rounded-t-3xl">
               <h2 className="text-white text-lg font-semibold">Aggiungi Prodotto</h2>
               <button onClick={onClose} className="text-white/80 hover:text-white">
                 <X className="w-5 h-5"/>
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-3 flex-1 overflow-y-auto space-y-4 space-x-10">
+              <form
+                onSubmit={handleSubmit}
+                className="p-3 flex-1 overflow-y-auto overscroll-contain"
+              >
               
               {/* Barcode */}
               <div>
@@ -277,46 +280,60 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
               </div>
 
               {/* Foto */}
-              <div>
-                <label className="block text-gray-700 mb-1 text-sm">Foto Prodotto</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm">
-                    <Upload className="w-4 h-4"/> Carica
-                  </button>
-                  <button type="button" onClick={startCamera}
-                className="w-full px-3 py-2 border-2 border-dashed rounded-xl flex justify-center gap-2">
-                <Camera className="w-4 h-4"/> Scatta foto
-              </button>
+            <div>
+              <label className="block text-gray-700 mb-1 text-sm">
+                Foto Prodotto
+              </label>
 
-              {formData.image && (
-                <img src={formData.image} className="w-32 h-32 object-cover rounded-xl"/>
-              )}
-                </div>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+              <div className="grid grid-cols-2 gap-2">
+                {/* Upload */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  Carica
+                </button>
+
+                {/* Camera */}
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm"
+                >
+                  <Camera className="w-4 h-4" />
+                  Scatta foto
+                </button>
+
+                {/* Preview */}
                 {formData.image && (
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="relative col-span-2">
                     <img
                       src={formData.image}
-                      alt="Anteprima"
-                      className="w-24 h-24 object-cover rounded-xl border border-gray-200"
+                      alt="Anteprima prodotto"
+                      className="w-full h-40 object-cover rounded-xl border border-gray-200"
                     />
+
                     <button
                       type="button"
                       onClick={() => handleChange("image", "")}
-                      className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white"
+                      className="absolute top-2 right-2 w-7 h-7 bg-red-500 rounded-full flex items-center justify-center text-white shadow"
                     >
-                      <X className="w-3 h-3"/>
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 )}
               </div>
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
 
               {/* Nome */}
               <div>
