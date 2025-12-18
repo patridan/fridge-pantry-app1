@@ -1,10 +1,11 @@
-import { LogOut, Plus, ShoppingCart } from 'lucide-react';
+import { LogOut, Plus, ShoppingCart, Utensils } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Product, ShoppingItem, StorageType } from '../types';
 import * as api from '../utils/api';
 import { AddProductModal } from './AddProductModal';
 import { ProductList } from './ProductList';
 import { ShoppingList } from './ShoppingList';
+import { RecipeModal } from './RecipeModal';
 
 interface DashboardProps {
   username: string;
@@ -16,12 +17,12 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<StorageType | 'all'>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load products and shopping list from server
     loadProducts();
     loadShoppingList();
   }, [username]);
@@ -134,32 +135,32 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-sky-50 to-amber-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-cyan-600 to-sky-600 shadow-lg sticky top-0 z-5">
+      <header className="bg-gradient-to-r from-cyan-600 to-sky-600 shadow-lg sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-white">Frigorifero & Dispensa</h1>
-              <p className="text-cyan-100 mt-1">Bentornato, {username}</p>
+              <h1 className="text-white text-xl font-bold">Frigorifero & Dispensa</h1>
+              <p className="text-cyan-100 text-sm">Bentornato, {username}</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => setShowShoppingList(!showShoppingList)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors backdrop-blur-sm"
+                className="p-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors backdrop-blur-sm flex items-center gap-2"
               >
                 <ShoppingCart className="w-5 h-5" />
-                Lista Spesa
+                <span className="hidden sm:inline">Lista Spesa</span>
                 {shoppingItems.filter(i => !i.completed).length > 0 && (
-                  <span className="bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                  <span className="bg-amber-500 text-white px-2 py-0.5 rounded-full text-xs">
                     {shoppingItems.filter(i => !i.completed).length}
                   </span>
                 )}
               </button>
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors backdrop-blur-sm"
+                className="p-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors backdrop-blur-sm flex items-center gap-2"
               >
                 <LogOut className="w-5 h-5" />
-                Esci
+                <span className="hidden sm:inline">Esci</span>
               </button>
             </div>
           </div>
@@ -168,14 +169,12 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
-        {/* Shopping List */}
         {showShoppingList && (
           <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
             <ShoppingList
@@ -187,7 +186,6 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
           </div>
         )}
 
-        {/* Loading State */}
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
@@ -202,8 +200,8 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
                   selectedCategory === 'all' ? 'ring-2 ring-cyan-500 border-cyan-400 shadow-cyan-200' : 'border-transparent hover:shadow-xl'
                 }`}
               >
-                <p className="text-gray-600 mb-1">Totale Prodotti</p>
-                <p className="text-gray-900">{products.length}</p>
+                <p className="text-gray-600 mb-1 text-sm font-medium">Totale Prodotti</p>
+                <p className="text-2xl font-bold text-gray-900">{products.length}</p>
               </div>
               <div 
                 onClick={() => setSelectedCategory('frigo')}
@@ -211,8 +209,8 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
                   selectedCategory === 'frigo' ? 'ring-2 ring-cyan-500 border-cyan-400 shadow-cyan-200' : 'border-cyan-200 hover:shadow-xl'
                 }`}
               >
-                <p className="text-cyan-700 mb-1">In Frigorifero</p>
-                <p className="text-cyan-600">{fridgeCount}</p>
+                <p className="text-cyan-700 mb-1 text-sm font-medium">In Frigorifero</p>
+                <p className="text-2xl font-bold text-cyan-600">{fridgeCount}</p>
               </div>
               <div 
                 onClick={() => setSelectedCategory('dispensa')}
@@ -220,30 +218,49 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
                   selectedCategory === 'dispensa' ? 'ring-2 ring-amber-500 border-amber-400 shadow-amber-200' : 'border-amber-200 hover:shadow-xl'
                 }`}
               >
-                <p className="text-amber-700 mb-1">In Dispensa</p>
-                <p className="text-amber-600">{pantryCount}</p>
+                <p className="text-amber-700 mb-1 text-sm font-medium">In Dispensa</p>
+                <p className="text-2xl font-bold text-amber-600">{pantryCount}</p>
               </div>
             </div>
 
-            {/* Add Button */}
-            <div className="mb-6">
+            {/* Pulsanti di Azione */}
+            <div className="flex flex-col sm:flex-row gap-6 mb-8">
               <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="w-full sm:w-auto bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white px-6 py-3 rounded-xl shadow-lg transition-all hover:shadow-xl flex items-center justify-center gap-2"
+                className="flex-1 bg-white border-2 border-cyan-600 text-cyan-700 hover:bg-cyan-50 px-6 py-4 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 font-bold"
               >
                 <Plus className="w-5 h-5" />
                 Aggiungi Prodotto
               </button>
+              
+              <div className="relative flex-1 group">
+                {/* Badge AI */}
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] px-3 py-1 rounded-full z-10 animate-bounce shadow-lg font-black border border-white uppercase">
+                  AI Magic
+                </span>
+                
+                {/* TASTO ARANCIONE FORZATO */}
+                <button
+                  onClick={() => setIsRecipeModalOpen(true)}
+                  style={{ 
+                    backgroundColor: '#ea580c', 
+                    borderBottom: '4px solid #9a3412',
+                    boxShadow: '0 10px 15px -3px rgba(234, 88, 12, 0.4)' 
+                  }}
+                  className="w-full text-white px-6 py-4 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 font-extrabold"
+                >
+                  <Utensils className="w-6 h-6 text-white" />
+                  <span className="uppercase tracking-wider text-lg text-white">Cosa cucino oggi?</span>
+                </button>
+              </div>
             </div>
 
-            {/* Products List */}
             <ProductList
               products={filteredProducts}
               onDelete={handleDeleteProduct}
               onUpdateQuantity={handleUpdateQuantity}
             />
 
-            {/* Empty State */}
             {filteredProducts.length === 0 && (
               <div className="text-center py-12 bg-white/50 backdrop-blur-sm rounded-2xl">
                 <p className="text-gray-500">
@@ -257,11 +274,17 @@ export function Dashboard({ username, onLogout }: DashboardProps) {
         )}
       </main>
 
-      {/* Add Product Modal */}
       {isAddModalOpen && (
         <AddProductModal
           onClose={() => setIsAddModalOpen(false)}
           onAdd={handleAddProduct}
+        />
+      )}
+
+      {isRecipeModalOpen && (
+        <RecipeModal
+          products={products}
+          onClose={() => setIsRecipeModalOpen(false)}
         />
       )}
     </div>
