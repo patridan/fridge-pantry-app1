@@ -1,4 +1,4 @@
-import { Barcode, Calendar, Camera, Upload, X } from "lucide-react";
+import { Barcode, Calendar, Upload, X } from "lucide-react";
 import React, { useRef, useState } from "react";
 import BarcodeScannerComponent from "react-qr-barcode-scanner";
 import { Product, StorageType } from "../types";
@@ -31,12 +31,6 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
   const [manualDate, setManualDate] = useState("");
   const [dateInputMode, setDateInputMode] = useState<"picker" | "manual">("picker");
   const [showScanner, setShowScanner] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
-
-
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: string, value: string | number) =>
@@ -77,83 +71,6 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
   };
 
   // -------------------------------
-  // CAMERA FOTO
-  // -------------------------------
-  const startCamera = async () => {
-    setShowScanner(false);
-    setVideoReady(false);
-    setShowCamera(true); // ⬅️ PRIMA mostri il video
-  
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" }
-        }
-      });
-  
-      streamRef.current = stream;
-    } catch (err) {
-      console.error("Errore accesso fotocamera:", err);
-      alert("Permessi fotocamera negati o non disponibile.");
-      setShowCamera(false);
-    }
-  };
-
-  React.useEffect(() => {
-    if (!showCamera) return;
-  
-    const video = videoRef.current;
-    const stream = streamRef.current;
-  
-    if (!video || !stream) return;
-  
-    video.srcObject = stream;
-  
-    video
-      .play()
-      .then(() => setVideoReady(true))
-      .catch(err => console.error("Errore play video:", err));
-  }, [showCamera]);
-  
-    
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(track => track.stop());
-    streamRef.current = null;
-  
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  
-    setShowCamera(false);
-    setVideoReady(false);
-  };
-  
-  const capturePhoto = () => {
-    const video = videoRef.current;
-    if (!video) return;
-  
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.warn("Video non pronto");
-      return;
-    }
-  
-    requestAnimationFrame(() => {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-  
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-  
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-      const image = canvas.toDataURL("image/jpeg", 0.9);
-      handleChange("image", image);
-      stopCamera();
-    });
-  };
-    
-  // -------------------------------
   // FILE UPLOAD 
   // -------------------------------
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,6 +81,7 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
     reader.onloadend = () => handleChange("image", reader.result as string);
     reader.readAsDataURL(file);
   };
+
   // -------------------------------
   // DATA MANUALE
   // -------------------------------
@@ -220,42 +138,8 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
         </div>
       )}
 
-      {/* CAMERA FOTO */}
-      {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-80 flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-md aspect-[4/3] bg-black rounded-xl overflow-hidden">
-          <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              onPlaying={() => setVideoReady(true)}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="border-4 border-cyan-500 rounded-xl w-2/3 h-2/3" />
-            </div>
-            <div className="absolute top-2 w-full text-center text-white font-semibold pointer-events-none">
-              Inquadra il prodotto
-            </div>
-          </div>
-          <div className="mt-4 flex gap-4">
-          <button
-            onClick={capturePhoto}
-            disabled={!videoReady}
-            className="px-6 py-3 bg-white rounded-full shadow-lg disabled:opacity-50"
-          >
-            <Camera className="w-6 h-6 text-gray-900" />
-          </button>
-            <button onClick={stopCamera} className="px-6 py-3 bg-red-500 rounded-full text-white font-semibold shadow-lg">
-              Chiudi
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* FORM MODAL */}
-      {!showCamera && !showScanner && (
+      {!showScanner && (
         <div className="fixed inset-0 bg-black/50 flex justify-center p-4 z-40 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full h-[80vh] overflow-hidden border-2 border-cyan-100 flex flex-col mt-10 mb-10">
             <div className="sticky top-0 bg-cyan-600 px-4 py-3 flex items-center justify-between rounded-t-3xl">
@@ -285,30 +169,20 @@ export function AddProductModal({ onClose, onAdd }: AddProductModalProps) {
                 Foto Prodotto
               </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                {/* Upload */}
+              <div className="grid grid-cols-1 gap-2">
+                {/* Solo Upload */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm"
                 >
                   <Upload className="w-4 h-4" />
-                  Carica
-                </button>
-
-                {/* Camera */}
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="px-3 py-2 border-2 border-dashed rounded-xl flex items-center justify-center gap-1 text-sm"
-                >
-                  <Camera className="w-4 h-4" />
-                  Scatta foto
+                  Carica immagine
                 </button>
 
                 {/* Preview */}
                 {formData.image && (
-                  <div className="relative col-span-2">
+                  <div className="relative">
                     <img
                       src={formData.image}
                       alt="Anteprima prodotto"
